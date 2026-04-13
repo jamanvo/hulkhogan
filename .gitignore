@@ -1,0 +1,8 @@
+db.sqlite3
+openai_session.sqlite3
+.idea
+*.pyc
+.env
+.vscode
+.rundebug.sh
+embedding/
