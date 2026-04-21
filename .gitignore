@@ -4,5 +4,4 @@ openai_session.sqlite3
 *.pyc
 .env
 .vscode
-.rundebug.sh
-embedding/
+.python-version

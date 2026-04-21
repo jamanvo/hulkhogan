@@ -16,6 +16,7 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.shortcuts import render
 from django.urls import path
 
 from api.api import api
@@ -24,4 +25,5 @@ from api.api import api
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),
+    path("test/", lambda request: render(request, "test.html"), name="test"),
 ]

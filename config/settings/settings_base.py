@@ -17,7 +17,6 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -28,7 +27,6 @@ STAGE = "local"
 DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
-
 
 # Application definition
 
@@ -71,13 +69,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 
 DATABASE_ROUTERS = ["config.configs.db_router.DefaultRouter"]
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -97,7 +93,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -109,12 +104,9 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 STATIC_URL = "static/"
 
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
 
 CACHES = {
     "default": {
@@ -123,9 +115,17 @@ CACHES = {
     }
 }
 
-GEMMA_URL = "https://vaiv-gemma3.xhub.co.kr/v1/chat/completions"
-KEYCLOAK_TOKEN_URL = os.environ["KEYCLOAK_TOKEN_URL"]
-CLIENT_ID = os.environ["CLIENT_ID"]
-CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 VAIV_USERNAME = os.environ["VAIV_USERNAME"]
 VAIV_PASSWORD = os.environ["VAIV_PASSWORD"]
+
+# VLLM
+KEYCLOAK_TOKEN_URL_VLLM = os.environ["KEYCLOAK_TOKEN_URL_VLLM"]
+VAIV_URL_VLLM = os.environ["VAIV_URL_VLLM"]
+CLIENT_ID_VLLM = os.environ["CLIENT_ID_VLLM"]
+CLIENT_SECRET_VLLM = os.environ["CLIENT_SECRET_VLLM"]
+
+# OLLAMA
+KEYCLOAK_TOKEN_URL_OLLAMA = os.environ["KEYCLOAK_TOKEN_URL_OLLAMA"]
+VAIV_URL_OLLAMA = os.environ["VAIV_URL_OLLAMA"]
+CLIENT_ID_OLLAMA = os.environ["CLIENT_ID_OLLAMA"]
+CLIENT_SECRET_OLLAMA = os.environ["CLIENT_SECRET_OLLAMA"]

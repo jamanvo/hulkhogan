@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload & API Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background: #fafafa;
+        }
+
+        /* ── 레이아웃 ── */
+        .left-panel {
+            width: 33.333%;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .right-panel {
+            width: 66.666%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 12px;
+            overflow: hidden;
+        }
+
+        /* ── 이미지 섹션 (상/하 각 1/2) ── */
+        .image-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .image-section + .image-section {
+            border-top: 1px solid #ddd;
+        }
+
+        .image-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .image-frame {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .image-frame img {
+            max-width: 100%;
+            max-height: calc(100% - 30px);
+            object-fit: contain;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+        }
+
+        .image-frame img:hover {
+            border-color: #999;
+        }
+
+        .dim-label {
+            font-size: 11px;
+            color: #888;
+            height: 16px;
+        }
+
+        .no-image {
+            font-size: 13px;
+            color: #aaa;
+            padding: 8px 0;
+        }
+
+        /* ── 오른쪽 패널 ── */
+        .right-panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .api-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #apiBtn {
+            padding: 8px 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        #apiBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #status-text {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .result-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .result-box label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        pre#resultOutput {
+            flex: 1;
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 14px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 13px;
+            line-height: 1.6;
+            min-height: 0;
+        }
+
+        /* ── 모달 ── */
+        #modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #modal-close {
+            position: fixed;
+            top: 18px;
+            right: 26px;
+            color: #fff;
+            font-size: 32px;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            z-index: 1002;
+        }
+
+        /* 이미지가 이 영역 밖으로 나가면 잘림 – 모달 자체는 움직이지 않음 */
+        #modal-viewport {
+            width: 80vw;
+            height: 72vh;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #modal-img {
+            position: absolute;
+            max-width: none;
+            max-height: none;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-drag: none;
+            transform-origin: center center;
+        }
+
+        #modal-img.grabbing {
+            cursor: grabbing;
+        }
+
+        #modal-controls {
+            margin-top: 14px;
+            background: #fff;
+            border-radius: 8px;
+            padding: 8px 16px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            z-index: 1002;
+        }
+
+        #modal-controls button {
+            padding: 6px 14px;
+            cursor: pointer;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        #modal-controls button:hover {
+            background: #0056b3;
+        }
+
+        #modal-scale-label {
+            font-size: 12px;
+            color: #555;
+            min-width: 42px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── 왼쪽 1/3: 이미지 상하 ── -->
+<div class="left-panel">
+
+    <!-- 상단: 원본 이미지 -->
+    <div class="image-section">
+        <h3>이미지 업로드</h3>
+        <input type="file" id="imageInput" accept="image/*" style="font-size:12px; margin-bottom:8px;">
+        <div class="image-frame">
+            <p class="no-image" id="no-image-text">이미지를 선택해주세요.</p>
+            <img id="thumbnail-img" style="display:none;" title="클릭하여 확대" alt="원본 이미지">
+            <span class="dim-label" id="original-dims"></span>
+        </div>
+    </div>
+
+    <!-- 하단: 가공한 이미지 -->
+    <div class="image-section">
+        <h3>가공한 이미지</h3>
+        <div class="image-frame">
+            <p class="no-image" id="no-enhanced-text">API 호출 후 표시됩니다.</p>
+            <img id="enhanced-image" style="display:none;" title="클릭하여 확대" alt="가공된 이미지">
+            <span class="dim-label" id="enhanced-dims"></span>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── 오른쪽 2/3: API 결과 ── -->
+<div class="right-panel">
+    <h3>API 컨트롤러</h3>
+    <select id="model-selector">
+        <option value="gemma4:31b">gemma4:31b</option>
+        <option value="qwen3.6:35b-a3b">qwen3.6:35b-a3b</option>
+        <option value="qwen3.5:35b">qwen3.5:35b</option>
+        <option value="anthropic">claude sonnet 4.6</option>
+    </select>
+    <select id="type-selector">
+        <option value="">단일호출</option>
+        <option value="-vote">투표(3회 호출 후 투표)</option>
+    </select>
+    <div class="api-row">
+        <button id="apiBtn" disabled>API 호출 (/api/agent/image-to-text)</button>
+        <span id="status-text"></span>
+    </div>
+    <div class="result-box">
+        <label>결과 (JSON)</label>
+        <pre id="resultOutput">결과가 여기에 표시됩니다.</pre>
+    </div>
+</div>
+
+<!-- ── 모달 ── -->
+<div id="modal">
+    <span id="modal-close">&times;</span>
+    <div id="modal-viewport">
+        <img id="modal-img" src="" draggable="false" alt="확대 이미지">
+    </div>
+    <div id="modal-controls">
+        <button onclick="changeScale(0.25)">+ 확대</button>
+        <button onclick="changeScale(-0.25)">− 축소</button>
+        <button onclick="resetView()">초기화</button>
+        <span id="modal-scale-label">100%</span>
+    </div>
+</div>
+
+<script>
+    /* ── 요소 참조 ── */
+    const imageInput = document.getElementById('imageInput');
+    const thumbImg = document.getElementById('thumbnail-img');
+    const noImageText = document.getElementById('no-image-text');
+    const noEnhancedText = document.getElementById('no-enhanced-text');
+    const apiBtn = document.getElementById('apiBtn');
+    const statusText = document.getElementById('status-text');
+    const resultOutput = document.getElementById('resultOutput');
+    const enhancedImage = document.getElementById('enhanced-image');
+    const originalDims = document.getElementById('original-dims');
+    const enhancedDims = document.getElementById('enhanced-dims');
+
+    const modal = document.getElementById('modal');
+    const modalViewport = document.getElementById('modal-viewport');
+    const modalImg = document.getElementById('modal-img');
+    const modalClose = document.getElementById('modal-close');
+    const modalScaleLabel = document.getElementById('modal-scale-label');
+
+    const modelSelector = document.getElementById('model-selector')
+    const typeSelector = document.getElementById('type-selector')
+
+    let selectedFile = null;
+
+    /* ── 이미지 업로드 ── */
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            thumbImg.src = ev.target.result;
+            thumbImg.style.display = 'block';
+            noImageText.style.display = 'none';
+            apiBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    /* ── 치수 표시 ── */
+    thumbImg.addEventListener('load', () => {
+        if (thumbImg.naturalWidth) {
+            originalDims.textContent = `${thumbImg.naturalWidth} × ${thumbImg.naturalHeight} px`;
+        }
+    });
+
+    enhancedImage.addEventListener('load', () => {
+        if (enhancedImage.naturalWidth) {
+            enhancedDims.textContent = `${enhancedImage.naturalWidth} × ${enhancedImage.naturalHeight} px`;
+        }
+    });
+
+    /* ── 모달 상태 ── */
+    let scale = 1;
+    let tx = 0;   // translateX
+    let ty = 0;   // translateY
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    function applyTransform() {
+        modalImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        modalScaleLabel.textContent = Math.round(scale * 100) + '%';
+    }
+
+    function changeScale(delta) {
+        scale = Math.max(0.1, Math.min(10, scale + delta));
+        applyTransform();
+    }
+
+    function resetView() {
+        scale = 1;
+        tx = 0;
+        ty = 0;
+        applyTransform();
+    }
+
+    /* ── 모달 열기 / 닫기 ── */
+    function openModal(src) {
+        modalImg.src = src;
+        resetView();
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+        dragging = false;
+    }
+
+    thumbImg.addEventListener('click', () => openModal(thumbImg.src));
+
+    enhancedImage.addEventListener('click', () => {
+        const src = enhancedImage.src;
+        if (src && !src.endsWith(window.location.href)) openModal(src);
+    });
+
+    modalClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    /* ── 드래그 패닝 (이미지만 이동, 모달 고정) ── */
+    modalImg.addEventListener('mousedown', (e) => {
+        e.preventDefault();          // 텍스트 선택 / 기본 드래그 차단
+        dragging = true;
+        dragStartX = e.clientX - tx;
+        dragStartY = e.clientY - ty;
+        modalImg.classList.add('grabbing');
+    });
+
+    /* mousemove / mouseup 은 document 에 붙여야 viewport 밖으로 나가도 동작 */
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        tx = e.clientX - dragStartX;
+        ty = e.clientY - dragStartY;
+        applyTransform();
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        modalImg.classList.remove('grabbing');
+    });
+
+    /* 마우스 휠로도 확대/축소 */
+    modalViewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        changeScale(delta);
+    }, {passive: false});
+
+    /* ── API 호출 ── */
+    apiBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+
+        enhancedImage.style.display = 'none';
+        noEnhancedText.style.display = 'block';
+        enhancedDims.textContent = '';
+
+        const formData = new FormData();
+        formData.append('image_file', selectedFile);
+        formData.append('model', modelSelector.value);
+
+        resultOutput.textContent = '호출 중...';
+        statusText.textContent = '요청 전송 중…';
+        apiBtn.disabled = true;
+
+        const provider = modelSelector.value === 'anthropic' ? 'anthropic' : `vaiv${typeSelector.value}`;
+
+        try {
+            const response = await fetch(`/api/agent/image-to-text/${provider}`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+            console.log(data.detail);
+
+            if (data.enhanced_image) {
+                enhancedImage.src = `data:image/png;base64,${data.enhanced_image}`;
+                enhancedImage.style.display = 'block';
+                noEnhancedText.style.display = 'none';
+            }
+
+            try {
+                let tableHtml = `
+                    <table border="1" style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>품목명</th>
+                                <th>단위</th>
+                                <th>수량</th>
+                                <th>단가</th>
+                                <th>공급가액</th>
+                                <th>세액</th>
+                                <th>합계금액</th>
+                            </tr>
+                        </thead>
+                    <tbody>
+                  `;
+
+                data.detail.items.forEach(item => {
+                    tableHtml += `
+                      <tr>
+                            <td style="white-space: pre-wrap;">${item.item_name}</td>
+                            <td>${item.unit}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.unit_price.toLocaleString()}</td>
+                            <td>${item.supply_price.toLocaleString()}</td>
+                            <td>${item.tax.toLocaleString()}</td>
+                            <td>${item.total_price.toLocaleString()}</td>
+                      </tr>
+                `;
+                });
+
+                tableHtml += `
+                  </tbody>
+                </table>
+              `;
+
+                resultOutput.innerHTML = tableHtml;
+            } catch (error) {
+                resultOutput.textContent = data.detail;
+            }
+
+            statusText.textContent = '완료';
+
+        } catch (error) {
+            resultOutput.textContent = '에러 발생: ' + error.message;
+            statusText.textContent = '실패';
+        } finally {
+            apiBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
