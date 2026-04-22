@@ -1,14 +1,11 @@
-import base64
-from datetime import datetime
-
 import cv2
-import numpy as np
 from ninja import UploadedFile
 
 from services.application.images.pre_processing_base import ImagePreProcessingBase
 from services.domain.image_processor import ImageProcessor
-from services.domain.prompt import get_system_prompt, get_user_prompt, get_vote_prompt
+from services.domain.prompt import get_system_prompt, get_user_prompt
 from services.domain.vaiv_caller import VaivCaller
+from services.schema.receipt_output import ItemListModel
 
 
 class ImagePreProcessing(ImagePreProcessingBase):
@@ -16,7 +13,7 @@ class ImagePreProcessing(ImagePreProcessingBase):
 
     def extract_text(
         self, uploaded_files: list[UploadedFile], model: str
-    ) -> tuple[str | None, list[str]]:
+    ) -> tuple[str | ItemListModel | None, list[str]]:
         imgs = self._load_multi_images(uploaded_files)
 
         code = None
@@ -52,20 +49,3 @@ class ImagePreProcessing(ImagePreProcessingBase):
         )
 
         return result, b64s
-
-    # async def extract_text_with_voting(
-    #     self, uploaded_file: UploadedFile, model: str
-    # ) -> tuple[str | None, str]:
-    #     img = self._load_image(uploaded_file)
-    #
-    #     processed_images = []
-    #     for angle in (0, 1.0, -1.0):
-    #         image = ImageProcessor(img=img).upscale().rotate_image(angle=angle).get_image()
-    #         processed_images.append(self._to_base64(image, None))
-    #
-    #     print(f"{datetime.now()} - 이미지 전처리 끝 - LLM 호출")
-    #     result = await VaivCaller(provider="ollama").vote(
-    #         get_vote_prompt(), get_system_prompt(), get_user_prompt(), processed_images, model
-    #     )
-    #
-    #     return result, ""

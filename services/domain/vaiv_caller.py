@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import time
 from datetime import datetime
@@ -6,6 +7,8 @@ from datetime import datetime
 import httpx
 import requests
 from django.conf import settings
+
+from services.schema.receipt_output import ItemListModel, ItemModel
 
 
 class VaivCaller:
@@ -70,7 +73,7 @@ class VaivCaller:
         encoded_images: list[str] | None,
         model: str,
         max_retries: int = 2,
-    ) -> str | None:
+    ) -> str | ItemListModel | None:
         print(f"{datetime.now()} - VAIV LLM 호출 시작")
         access_token = self.get_access_token()
         headers = self._build_header(access_token)
@@ -79,39 +82,6 @@ class VaivCaller:
         for attempt in range(max_retries + 1):
             try:
                 response = requests.post(self.vaiv_url, headers=headers, json=payload, timeout=300)
-                if response.status_code != 200:
-                    raise RuntimeError(response.text)
-
-                return self._parse_response(response.json())
-            except Exception as e:
-                if attempt < max_retries:
-                    print(f"재시도 {attempt + 1}/{max_retries}: {e}")
-                    time.sleep(1.5)
-                else:
-                    raise RuntimeError(f"LLM 호출 실패: {e}") from e
-
-        return None
-
-    async def call_llm_async(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        encoded_image: str | None,
-        model: str,
-        max_retries: int = 2,
-    ) -> str | None:
-        print(f"{datetime.now()} - VAIV LLM(async) 호출 시작")
-        access_token = self.get_access_token()
-        headers = self._build_header(access_token)
-        payload = self._build_payload(model, system_prompt, user_prompt, encoded_image)
-
-        for attempt in range(max_retries + 1):
-            try:
-                response = await self.httpx_client.post(
-                    self.vaiv_url, headers=headers, json=payload
-                )
-
-                print(f"{datetime.now()} - VAIV LLM(async) 호출 종료")
                 if response.status_code != 200:
                     raise RuntimeError(response.text)
 
@@ -180,7 +150,7 @@ class VaivCaller:
             "temperature": 0.0,
             "max_tokens": 4096,
             "messages": messages,
-            "think": False,
+            "format": ItemListModel.model_json_schema(),
         }
 
     def _convert_model_name(self, model: str) -> str:
@@ -189,34 +159,13 @@ class VaivCaller:
 
         return model
 
-    def _parse_response(self, response: dict) -> str:
+    def _parse_response(self, response: dict) -> str | ItemListModel:
         if self.provider == "vllm":
-            return response["choices"][0]["message"]["content"]
+            res = response["choices"][0]["message"]["content"]
         else:
-            return response["message"]["content"]
+            res = response["message"]["content"]
 
-    async def vote(
-        self,
-        vote_system_prompt: str,
-        system_prompt: str,
-        user_prompt: str,
-        encoded_images: list[str],
-        model: str,
-    ) -> str | None:
-        tasks = [
-            self.call_llm_async(system_prompt, user_prompt, encoded_image, model)
-            for encoded_image in encoded_images
-        ]
-
-        print(f"{datetime.now()} - OCR 시작")
-        results = await asyncio.gather(*tasks)
-
-        merged_ocr_result = "".join(
-            [f"{i + 1}번 결과: {result}\n" for i, result in enumerate(results)]
-        )
-
-        print(f"{datetime.now()} - OCR 결과 투표 시작")
-        return self.call_llm(vote_system_prompt, merged_ocr_result, None, model)
+        return ItemListModel(**json.loads(res))
 
     def call_nemotron(self, file_path: str) -> dict:
         access_token = self.get_access_token()

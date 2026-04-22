@@ -1,4 +1,4 @@
-import os
+from typing import List
 
 import cv2
 import numpy as np
@@ -6,33 +6,49 @@ from ninja import UploadedFile
 
 from services.application.images.pre_processing_base import ImagePreProcessingBase
 from services.domain.image_processor import ImageProcessor
+from services.domain.prompt import get_semantic_prompt
 from services.domain.vaiv_caller import VaivCaller
+from services.schema.receipt_output import ItemListModel
 
 
 class NemotronPreProcessing(ImagePreProcessingBase):
-    def extract_text_with_ocr(self, uploaded_file: UploadedFile) -> tuple[str | None, str]:
-        img = self._load_image(uploaded_file)
+    def __init__(self):
+        self.vaiv_caller_nemotron = VaivCaller(provider="vllm")
+        self.vaiv_caller_ollama = VaivCaller(provider="ollama")
 
-        image = (
-            ImageProcessor(img=img)
-            .to_grayscale_with_gamma(gamma=1.5)
-            .enhance_contrast(clip_limit=2.0)
-            .denoise()
-            # .sharpen(alpha=1.7)
-            .adaptive_binarize(block_size=31)
-            .get_image()
-        )
+    def extract_text_with_ocr(
+        self, uploaded_files: List[UploadedFile]
+    ) -> tuple[ItemListModel, list[str]]:
+        imgs = self._load_multi_images(uploaded_files)
 
-        b64 = self._to_base64(image, cv2.COLOR_GRAY2BGR)
-        img_path = f"./images/{uploaded_file.name}"
-        self._save_image(image, img_path)
+        b64s = []
+        result_list = []
+        constructed_text = ""
+        for i, img in enumerate(imgs):
+            image = (
+                ImageProcessor(img=img)
+                .to_grayscale_with_gamma(gamma=1.5)
+                .enhance_contrast(clip_limit=2.0)
+                .denoise()
+                # .sharpen(alpha=1.7)
+                .adaptive_binarize(block_size=31)
+                .get_image()
+            )
 
-        try:
-            result = VaivCaller(provider="vllm").call_nemotron(img_path)
+            b64 = self._to_base64(image, cv2.COLOR_GRAY2BGR)
+            b64s.append(b64)
 
-            return self.reconstruct_text(result), b64
-        finally:
-            self._delete_file(img_path)
+            img_path = f"./images/{uploaded_files[i].name}"
+            self._save_image(image, img_path)
+
+            try:
+                ocr_result = self.vaiv_caller_nemotron.call_nemotron(img_path)
+                constructed_text += self.reconstruct_text(ocr_result)
+
+            finally:
+                self._delete_file(img_path)
+
+        return self._extract_semantic(constructed_text), b64s
 
     def _save_file(self, uploaded_file: UploadedFile) -> str:
         filename = uploaded_file.name
@@ -50,8 +66,8 @@ class NemotronPreProcessing(ImagePreProcessingBase):
         if not raw:
             return result.get("text", "")
 
-        items = []
         heights = []
+        items = []
 
         for r in raw:
             text = r.get("text", "").strip()
@@ -117,3 +133,8 @@ class NemotronPreProcessing(ImagePreProcessingBase):
             merged_lines.append("".join(parts).strip())
 
         return "\n".join(merged_lines)
+
+    def _extract_semantic(self, ocr_result: str) -> ItemListModel:
+        return self.vaiv_caller_ollama.call_llm(
+            get_semantic_prompt(), ocr_result, None, "qwen3.6:35b-a3b"
+        )

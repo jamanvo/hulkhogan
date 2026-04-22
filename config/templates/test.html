@@ -228,7 +228,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.82);
+            background: white;
             z-index: 1000;
             flex-direction: column;
             align-items: center;
@@ -367,7 +367,6 @@
         <option value="gemma4:31b">gemma4:31b</option>
         <option value="qwen3.6:35b-a3b">qwen3.6:35b-a3b</option>
         <option value="qwen3.5:35b">qwen3.5:35b</option>
-        <option value="anthropic">claude sonnet 4.6</option>
     </select>
     {#    <select id="type-selector">#}
     {#        <option value="">단일호출</option>#}
@@ -546,13 +545,17 @@
 
     function openModal(src) {
         modalImg.src = src;
-        /* 이미지 로드 완료 후 높이 맞춤 */
-        if (modalImg.complete && modalImg.naturalHeight) {
-            resetView();
-        } else {
-            modalImg.onload = resetView;
-        }
         modal.style.display = 'flex';
+
+        requestAnimationFrame(() => {
+            if (modalImg.complete && modalImg.naturalHeight) {
+                resetView();
+            } else {
+                modalImg.onload = () => {
+                    resetView();
+                };
+            }
+        });
     }
 
     function closeModal() {
@@ -606,14 +609,12 @@
         selectedFiles.forEach(file => formData.append('image_file', file));
         formData.append('model', modelSelector.value);
 
-        console.log(formData)
         resultOutput.textContent = '호출 중...';
         statusText.textContent = '요청 전송 중…';
         apiBtn.disabled = true;
 
         let provider = '';
-        if (modelSelector.value === 'anthropic') provider = 'anthropic';
-        else if (modelSelector.value === 'nemotron') provider = 'nemotron-ocr-v2';
+        if (modelSelector.value === 'nemotron') provider = 'nemotron-ocr-v2';
         else provider = `vaiv`;
         {#else provider = `vaiv${typeSelector.value}`;#}
 
@@ -624,10 +625,9 @@
             });
 
             const data = await response.json();
-            console.log(data.detail);
 
             /* 가공 이미지 처리 – 배열 또는 단일 */
-            const enhancedRaw = data.enhanced_image;
+            const enhancedRaw = data.enhanced_images;
             if (enhancedRaw) {
                 const enhArr = Array.isArray(enhancedRaw) ? enhancedRaw : [enhancedRaw];
                 ec.srcs = enhArr.map(b64 => `data:image/png;base64,${b64}`);
@@ -638,36 +638,33 @@
             /* 결과 테이블 렌더 */
             try {
                 /* detail이 배열이면 여러 결과, 단일 객체이면 감싸서 처리 */
-                const details = Array.isArray(data.detail) ? data.detail : [data.detail];
-
-                let html = '';
-                details.forEach((detail, di) => {
-                    if (details.length > 1) html += `<b>이미지 ${di + 1}</b><br>`;
-                    html += `
-                    <table border="1" style="border-collapse:collapse; width:100%; margin-bottom:12px;">
+                let html = `<table border="1" style="border-collapse:collapse; width:100%; margin-bottom:12px;">
                         <thead>
                             <tr>
-                                <th>품목명</th><th>단위</th><th>수량</th>
-                                <th>단가</th><th>공급가액</th><th>세액</th><th>합계금액</th>
+                                <th>no.</th>
+                                <th>품목명</th>
+                                <th>수량</th>
+                                <th>결제금액</th>
+                                <th>단가</th>
+                                <th>단위</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${detail.items.map(item => `
-                              <tr>
-                                <td style="white-space:pre-wrap;">${item.item_name}</td>
+                        <tbody>`;
+                data.detail.items.forEach((item, di) => {
+                    html += `<tr>
+                                <td>${di + 1}</td>
+                                <td style="white-space:pre-wrap;">${item.name}</td>
+                                <td>${item.count}</td>
+                                <td>${item.price}</td>
+                                <td>${item.unit_price}</td>
                                 <td>${item.unit}</td>
-                                <td>${item.quantity}</td>
-                                <td>${item.unit_price.toLocaleString()}</td>
-                                <td>${item.supply_price.toLocaleString()}</td>
-                                <td>${item.tax.toLocaleString()}</td>
-                                <td>${item.total_price.toLocaleString()}</td>
-                              </tr>`).join('')}
-                        </tbody>
-                    </table>`;
+                              </tr>`;
                 });
+                html += `</tbody></table>`;
 
                 resultOutput.innerHTML = html;
-            } catch {
+            } catch (error) {
+                console.log(error);
                 resultOutput.textContent = typeof data.detail === 'string'
                     ? data.detail
                     : JSON.stringify(data.detail, null, 2);
