@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             display: flex;
             height: 100vh;
             overflow: hidden;
@@ -37,7 +37,7 @@
             overflow: hidden;
         }
 
-        /* ── 이미지 섹션 (상/하 각 1/2) ── */
+        /* ── 이미지 섹션 ── */
         .image-section {
             flex: 1;
             display: flex;
@@ -55,43 +55,111 @@
             font-size: 14px;
             font-weight: 600;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
-        .image-frame {
+        /* ── 캐러셀 래퍼 ── */
+        .carousel-wrapper {
             flex: 1;
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
+            min-height: 0;
             gap: 6px;
+        }
+
+        /* 이미지 뷰포트 + 좌우 화살표 */
+        .carousel-viewport {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             min-height: 0;
             overflow: hidden;
         }
 
-        .image-frame img {
-            max-width: 100%;
-            max-height: calc(100% - 30px);
+        .carousel-viewport img.thumb {
+            max-width: calc(100% - 48px); /* 화살표 공간 확보 */
+            max-height: 100%;
             object-fit: contain;
             border: 1px solid #ddd;
             border-radius: 4px;
             cursor: pointer;
             display: block;
+            transition: border-color 0.15s;
         }
 
-        .image-frame img:hover {
+        .carousel-viewport img.thumb:hover {
             border-color: #999;
-        }
-
-        .dim-label {
-            font-size: 11px;
-            color: #888;
-            height: 16px;
         }
 
         .no-image {
             font-size: 13px;
             color: #aaa;
-            padding: 8px 0;
+        }
+
+        /* 화살표 버튼 */
+        .arrow-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #444;
+            z-index: 2;
+            transition: background 0.15s, border-color 0.15s;
+            user-select: none;
+        }
+
+        .arrow-btn:hover {
+            background: #fff;
+            border-color: #888;
+        }
+
+        .arrow-btn:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+
+        .arrow-btn.left {
+            left: 2px;
+        }
+
+        .arrow-btn.right {
+            right: 2px;
+        }
+
+        /* 인디케이터 + 치수 */
+        .carousel-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .page-indicator {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .dim-label {
+            font-size: 11px;
+            color: #888;
+        }
+
+        /* ── 파일 입력 ── */
+        #imageInput {
+            font-size: 12px;
+            margin-bottom: 8px;
         }
 
         /* ── 오른쪽 패널 ── */
@@ -179,7 +247,7 @@
             z-index: 1002;
         }
 
-        /* 이미지가 이 영역 밖으로 나가면 잘림 – 모달 자체는 움직이지 않음 */
+        /* 모달 이미지 뷰포트 – 테두리 추가 */
         #modal-viewport {
             width: 80vw;
             height: 72vh;
@@ -188,6 +256,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            border: 2px solid rgba(255, 255, 255, 0.45);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 8px 40px rgba(0, 0, 0, 0.6);
         }
 
         #modal-img {
@@ -235,6 +307,14 @@
             min-width: 42px;
             text-align: center;
         }
+
+        select {
+            padding: 6px 10px;
+            font-size: 13px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+        }
     </style>
 </head>
 <body>
@@ -242,24 +322,38 @@
 <!-- ── 왼쪽 1/3: 이미지 상하 ── -->
 <div class="left-panel">
 
-    <!-- 상단: 원본 이미지 -->
+    <!-- 상단: 원본 이미지 캐러셀 -->
     <div class="image-section">
         <h3>이미지 업로드</h3>
-        <input type="file" id="imageInput" accept="image/*" style="font-size:12px; margin-bottom:8px;">
-        <div class="image-frame">
-            <p class="no-image" id="no-image-text">이미지를 선택해주세요.</p>
-            <img id="thumbnail-img" style="display:none;" title="클릭하여 확대" alt="원본 이미지">
-            <span class="dim-label" id="original-dims"></span>
+        <input type="file" id="imageInput" accept="image/*" multiple>
+        <div class="carousel-wrapper">
+            <div class="carousel-viewport" id="orig-viewport">
+                <button class="arrow-btn left" id="orig-prev" disabled>&#8249;</button>
+                <p class="no-image" id="no-image-text">이미지를 선택해주세요.</p>
+                <img class="thumb" id="orig-thumb" style="display:none;" title="클릭하여 확대" alt="원본 이미지">
+                <button class="arrow-btn right" id="orig-next" disabled>&#8250;</button>
+            </div>
+            <div class="carousel-footer">
+                <span class="page-indicator" id="orig-indicator"></span>
+                <span class="dim-label" id="original-dims"></span>
+            </div>
         </div>
     </div>
 
-    <!-- 하단: 가공한 이미지 -->
+    <!-- 하단: 가공된 이미지 캐러셀 -->
     <div class="image-section">
         <h3>가공한 이미지</h3>
-        <div class="image-frame">
-            <p class="no-image" id="no-enhanced-text">API 호출 후 표시됩니다.</p>
-            <img id="enhanced-image" style="display:none;" title="클릭하여 확대" alt="가공된 이미지">
-            <span class="dim-label" id="enhanced-dims"></span>
+        <div class="carousel-wrapper">
+            <div class="carousel-viewport" id="enh-viewport">
+                <button class="arrow-btn left" id="enh-prev" disabled>&#8249;</button>
+                <p class="no-image" id="no-enhanced-text">API 호출 후 표시됩니다.</p>
+                <img class="thumb" id="enh-thumb" style="display:none;" title="클릭하여 확대" alt="가공된 이미지">
+                <button class="arrow-btn right" id="enh-next" disabled>&#8250;</button>
+            </div>
+            <div class="carousel-footer">
+                <span class="page-indicator" id="enh-indicator"></span>
+                <span class="dim-label" id="enhanced-dims"></span>
+            </div>
         </div>
     </div>
 
@@ -269,15 +363,16 @@
 <div class="right-panel">
     <h3>API 컨트롤러</h3>
     <select id="model-selector">
+        <option value="nemotron">nemotron-ocr-v2</option>
         <option value="gemma4:31b">gemma4:31b</option>
         <option value="qwen3.6:35b-a3b">qwen3.6:35b-a3b</option>
         <option value="qwen3.5:35b">qwen3.5:35b</option>
         <option value="anthropic">claude sonnet 4.6</option>
     </select>
-    <select id="type-selector">
-        <option value="">단일호출</option>
-        <option value="-vote">투표(3회 호출 후 투표)</option>
-    </select>
+    {#    <select id="type-selector">#}
+    {#        <option value="">단일호출</option>#}
+    {#        <option value="-vote">투표(3회 호출 후 투표)</option>#}
+    {#    </select>#}
     <div class="api-row">
         <button id="apiBtn" disabled>API 호출 (/api/agent/image-to-text)</button>
         <span id="status-text"></span>
@@ -305,15 +400,11 @@
 <script>
     /* ── 요소 참조 ── */
     const imageInput = document.getElementById('imageInput');
-    const thumbImg = document.getElementById('thumbnail-img');
-    const noImageText = document.getElementById('no-image-text');
-    const noEnhancedText = document.getElementById('no-enhanced-text');
     const apiBtn = document.getElementById('apiBtn');
     const statusText = document.getElementById('status-text');
     const resultOutput = document.getElementById('resultOutput');
-    const enhancedImage = document.getElementById('enhanced-image');
-    const originalDims = document.getElementById('original-dims');
-    const enhancedDims = document.getElementById('enhanced-dims');
+    const modelSelector = document.getElementById('model-selector');
+    {#const typeSelector = document.getElementById('type-selector');#}
 
     const modal = document.getElementById('modal');
     const modalViewport = document.getElementById('modal-viewport');
@@ -321,46 +412,117 @@
     const modalClose = document.getElementById('modal-close');
     const modalScaleLabel = document.getElementById('modal-scale-label');
 
-    const modelSelector = document.getElementById('model-selector')
-    const typeSelector = document.getElementById('type-selector')
+    /* ── 캐러셀 상태 ── */
+    const carousels = {
+        orig: {
+            srcs: [],
+            idx: 0,
+            thumb: document.getElementById('orig-thumb'),
+            noText: document.getElementById('no-image-text'),
+            prevBtn: document.getElementById('orig-prev'),
+            nextBtn: document.getElementById('orig-next'),
+            indicator: document.getElementById('orig-indicator'),
+            dims: document.getElementById('original-dims'),
+        },
+        enh: {
+            srcs: [],
+            idx: 0,
+            thumb: document.getElementById('enh-thumb'),
+            noText: document.getElementById('no-enhanced-text'),
+            prevBtn: document.getElementById('enh-prev'),
+            nextBtn: document.getElementById('enh-next'),
+            indicator: document.getElementById('enh-indicator'),
+            dims: document.getElementById('enhanced-dims'),
+        },
+    };
 
-    let selectedFile = null;
+    /* 캐러셀 공통 렌더 */
+    function renderCarousel(c) {
+        if (c.srcs.length === 0) {
+            c.thumb.style.display = 'none';
+            c.noText.style.display = 'block';
+            c.prevBtn.disabled = true;
+            c.nextBtn.disabled = true;
+            c.indicator.textContent = '';
+            c.dims.textContent = '';
+            return;
+        }
+        const src = c.srcs[c.idx];
+        c.thumb.src = src;
+        c.thumb.style.display = 'block';
+        c.noText.style.display = 'none';
+        c.prevBtn.disabled = c.idx === 0;
+        c.nextBtn.disabled = c.idx === c.srcs.length - 1;
+        c.indicator.textContent = c.srcs.length > 1 ? `${c.idx + 1} / ${c.srcs.length}` : '';
+    }
 
-    /* ── 이미지 업로드 ── */
+    /* 치수 업데이트 */
+    function bindDims(c) {
+        c.thumb.addEventListener('load', () => {
+            if (c.thumb.naturalWidth) {
+                c.dims.textContent = `${c.thumb.naturalWidth} × ${c.thumb.naturalHeight} px`;
+            }
+        });
+    }
+
+    bindDims(carousels.orig);
+    bindDims(carousels.enh);
+
+    /* 화살표 이벤트 */
+    carousels.orig.prevBtn.addEventListener('click', () => {
+        carousels.orig.idx--;
+        renderCarousel(carousels.orig);
+    });
+    carousels.orig.nextBtn.addEventListener('click', () => {
+        carousels.orig.idx++;
+        renderCarousel(carousels.orig);
+    });
+    carousels.enh.prevBtn.addEventListener('click', () => {
+        carousels.enh.idx--;
+        renderCarousel(carousels.enh);
+    });
+    carousels.enh.nextBtn.addEventListener('click', () => {
+        carousels.enh.idx++;
+        renderCarousel(carousels.enh);
+    });
+
+    /* 썸네일 클릭 → 모달 */
+    carousels.orig.thumb.addEventListener('click', () => openModal(carousels.orig.thumb.src));
+    carousels.enh.thumb.addEventListener('click', () => {
+        const src = carousels.enh.thumb.src;
+        if (src && src !== window.location.href) openModal(src);
+    });
+
+    /* ── 이미지 업로드 (다중) ── */
+    let selectedFiles = [];
+
     imageInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        selectedFile = file;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            thumbImg.src = ev.target.result;
-            thumbImg.style.display = 'block';
-            noImageText.style.display = 'none';
-            apiBtn.disabled = false;
-        };
-        reader.readAsDataURL(file);
-    });
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+        selectedFiles = files;
 
-    /* ── 치수 표시 ── */
-    thumbImg.addEventListener('load', () => {
-        if (thumbImg.naturalWidth) {
-            originalDims.textContent = `${thumbImg.naturalWidth} × ${thumbImg.naturalHeight} px`;
-        }
-    });
+        const c = carousels.orig;
+        c.srcs = [];
+        c.idx = 0;
 
-    enhancedImage.addEventListener('load', () => {
-        if (enhancedImage.naturalWidth) {
-            enhancedDims.textContent = `${enhancedImage.naturalWidth} × ${enhancedImage.naturalHeight} px`;
-        }
+        let loaded = 0;
+        files.forEach((file, i) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                c.srcs[i] = ev.target.result;
+                loaded++;
+                if (loaded === files.length) {
+                    renderCarousel(c);
+                    apiBtn.disabled = false;
+                }
+            };
+            reader.readAsDataURL(file);
+        });
     });
 
     /* ── 모달 상태 ── */
-    let scale = 1;
-    let tx = 0;   // translateX
-    let ty = 0;   // translateY
-    let dragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
+    let scale = 1, tx = 0, ty = 0;
+    let dragging = false, dragStartX = 0, dragStartY = 0;
 
     function applyTransform() {
         modalImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
@@ -373,16 +535,23 @@
     }
 
     function resetView() {
-        scale = 1;
+        /* 모달 뷰포트 세로(px) 기준으로 초기 스케일 계산 */
+        const vpH = modalViewport.clientHeight;
+        const imgNatH = modalImg.naturalHeight;
+        scale = imgNatH > 0 ? vpH / imgNatH : 1;
         tx = 0;
         ty = 0;
         applyTransform();
     }
 
-    /* ── 모달 열기 / 닫기 ── */
     function openModal(src) {
         modalImg.src = src;
-        resetView();
+        /* 이미지 로드 완료 후 높이 맞춤 */
+        if (modalImg.complete && modalImg.naturalHeight) {
+            resetView();
+        } else {
+            modalImg.onload = resetView;
+        }
         modal.style.display = 'flex';
     }
 
@@ -391,28 +560,19 @@
         dragging = false;
     }
 
-    thumbImg.addEventListener('click', () => openModal(thumbImg.src));
-
-    enhancedImage.addEventListener('click', () => {
-        const src = enhancedImage.src;
-        if (src && !src.endsWith(window.location.href)) openModal(src);
-    });
-
     modalClose.addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
     });
 
-    /* ── 드래그 패닝 (이미지만 이동, 모달 고정) ── */
+    /* 드래그 패닝 */
     modalImg.addEventListener('mousedown', (e) => {
-        e.preventDefault();          // 텍스트 선택 / 기본 드래그 차단
+        e.preventDefault();
         dragging = true;
         dragStartX = e.clientX - tx;
         dragStartY = e.clientY - ty;
         modalImg.classList.add('grabbing');
     });
-
-    /* mousemove / mouseup 은 document 에 붙여야 viewport 밖으로 나가도 동작 */
     document.addEventListener('mousemove', (e) => {
         if (!dragging) return;
         e.preventDefault();
@@ -420,37 +580,42 @@
         ty = e.clientY - dragStartY;
         applyTransform();
     });
-
     document.addEventListener('mouseup', () => {
         if (!dragging) return;
         dragging = false;
         modalImg.classList.remove('grabbing');
     });
 
-    /* 마우스 휠로도 확대/축소 */
+    /* 휠 확대/축소 */
     modalViewport.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        changeScale(delta);
+        changeScale(e.deltaY > 0 ? -0.1 : 0.1);
     }, {passive: false});
 
     /* ── API 호출 ── */
     apiBtn.addEventListener('click', async () => {
-        if (!selectedFile) return;
+        if (!selectedFiles.length) return;
 
-        enhancedImage.style.display = 'none';
-        noEnhancedText.style.display = 'block';
-        enhancedDims.textContent = '';
+        /* 가공 이미지 초기화 */
+        const ec = carousels.enh;
+        ec.srcs = [];
+        ec.idx = 0;
+        renderCarousel(ec);
 
         const formData = new FormData();
-        formData.append('image_file', selectedFile);
+        selectedFiles.forEach(file => formData.append('image_file', file));
         formData.append('model', modelSelector.value);
 
+        console.log(formData)
         resultOutput.textContent = '호출 중...';
         statusText.textContent = '요청 전송 중…';
         apiBtn.disabled = true;
 
-        const provider = modelSelector.value === 'anthropic' ? 'anthropic' : `vaiv${typeSelector.value}`;
+        let provider = '';
+        if (modelSelector.value === 'anthropic') provider = 'anthropic';
+        else if (modelSelector.value === 'nemotron') provider = 'nemotron-ocr-v2';
+        else provider = `vaiv`;
+        {#else provider = `vaiv${typeSelector.value}`;#}
 
         try {
             const response = await fetch(`/api/agent/image-to-text/${provider}`, {
@@ -461,51 +626,51 @@
             const data = await response.json();
             console.log(data.detail);
 
-            if (data.enhanced_image) {
-                enhancedImage.src = `data:image/png;base64,${data.enhanced_image}`;
-                enhancedImage.style.display = 'block';
-                noEnhancedText.style.display = 'none';
+            /* 가공 이미지 처리 – 배열 또는 단일 */
+            const enhancedRaw = data.enhanced_image;
+            if (enhancedRaw) {
+                const enhArr = Array.isArray(enhancedRaw) ? enhancedRaw : [enhancedRaw];
+                ec.srcs = enhArr.map(b64 => `data:image/png;base64,${b64}`);
+                ec.idx = 0;
+                renderCarousel(ec);
             }
 
+            /* 결과 테이블 렌더 */
             try {
-                let tableHtml = `
-                    <table border="1" style="border-collapse: collapse; width: 100%;">
+                /* detail이 배열이면 여러 결과, 단일 객체이면 감싸서 처리 */
+                const details = Array.isArray(data.detail) ? data.detail : [data.detail];
+
+                let html = '';
+                details.forEach((detail, di) => {
+                    if (details.length > 1) html += `<b>이미지 ${di + 1}</b><br>`;
+                    html += `
+                    <table border="1" style="border-collapse:collapse; width:100%; margin-bottom:12px;">
                         <thead>
                             <tr>
-                                <th>품목명</th>
-                                <th>단위</th>
-                                <th>수량</th>
-                                <th>단가</th>
-                                <th>공급가액</th>
-                                <th>세액</th>
-                                <th>합계금액</th>
+                                <th>품목명</th><th>단위</th><th>수량</th>
+                                <th>단가</th><th>공급가액</th><th>세액</th><th>합계금액</th>
                             </tr>
                         </thead>
-                    <tbody>
-                  `;
-
-                data.detail.items.forEach(item => {
-                    tableHtml += `
-                      <tr>
-                            <td style="white-space: pre-wrap;">${item.item_name}</td>
-                            <td>${item.unit}</td>
-                            <td>${item.quantity}</td>
-                            <td>${item.unit_price.toLocaleString()}</td>
-                            <td>${item.supply_price.toLocaleString()}</td>
-                            <td>${item.tax.toLocaleString()}</td>
-                            <td>${item.total_price.toLocaleString()}</td>
-                      </tr>
-                `;
+                        <tbody>
+                            ${detail.items.map(item => `
+                              <tr>
+                                <td style="white-space:pre-wrap;">${item.item_name}</td>
+                                <td>${item.unit}</td>
+                                <td>${item.quantity}</td>
+                                <td>${item.unit_price.toLocaleString()}</td>
+                                <td>${item.supply_price.toLocaleString()}</td>
+                                <td>${item.tax.toLocaleString()}</td>
+                                <td>${item.total_price.toLocaleString()}</td>
+                              </tr>`).join('')}
+                        </tbody>
+                    </table>`;
                 });
 
-                tableHtml += `
-                  </tbody>
-                </table>
-              `;
-
-                resultOutput.innerHTML = tableHtml;
-            } catch (error) {
-                resultOutput.textContent = data.detail;
+                resultOutput.innerHTML = html;
+            } catch {
+                resultOutput.textContent = typeof data.detail === 'string'
+                    ? data.detail
+                    : JSON.stringify(data.detail, null, 2);
             }
 
             statusText.textContent = '완료';

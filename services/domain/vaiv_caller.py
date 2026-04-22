@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from datetime import datetime
 
@@ -66,14 +67,14 @@ class VaivCaller:
         self,
         system_prompt: str,
         user_prompt: str,
-        encoded_image: str | None,
+        encoded_images: list[str] | None,
         model: str,
         max_retries: int = 2,
     ) -> str | None:
         print(f"{datetime.now()} - VAIV LLM 호출 시작")
         access_token = self.get_access_token()
         headers = self._build_header(access_token)
-        payload = self._build_payload(model, system_prompt, user_prompt, encoded_image)
+        payload = self._build_payload(model, system_prompt, user_prompt, encoded_images)
 
         for attempt in range(max_retries + 1):
             try:
@@ -141,12 +142,19 @@ class VaivCaller:
         model: str,
         system_prompt: str,
         user_prompt: str,
-        encoded_image: str | None,
+        encoded_images: list[str] | None,
     ) -> dict:
         messages = [{"role": "system", "content": system_prompt}]
 
-        if encoded_image is not None:
+        if encoded_images is not None:
             if self.provider == "vllm":
+                image_part = [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
+                    }
+                    for encoded_image in encoded_images
+                ]
                 messages.append(
                     {
                         "role": "user",
@@ -155,15 +163,14 @@ class VaivCaller:
                                 "type": "text",
                                 "text": user_prompt,
                             },
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
-                            },
+                            *image_part,
                         ],
                     }
                 )
             else:
-                messages.append({"role": "user", "content": user_prompt, "images": [encoded_image]})
+                messages.append(
+                    {"role": "user", "content": user_prompt, "images": [e for e in encoded_images]}
+                )
         else:
             messages.append({"role": "user", "content": user_prompt})
 
@@ -210,3 +217,31 @@ class VaivCaller:
 
         print(f"{datetime.now()} - OCR 결과 투표 시작")
         return self.call_llm(vote_system_prompt, merged_ocr_result, None, model)
+
+    def call_nemotron(self, file_path: str) -> dict:
+        access_token = self.get_access_token()
+
+        lower = file_path.lower()
+        if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+            mime = "image/jpeg"
+        else:
+            mime = "image/png"
+
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, mime)}
+
+            start = time.time()
+            response = requests.post(
+                settings.VAIV_OCR_URL,
+                files=files,
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=300,
+            )
+            elapsed = time.time() - start
+
+        print(f"⏱️ OCR 응답 시간: {elapsed:.2f}s ({os.path.basename(file_path)})")
+
+        if response.status_code != 200:
+            raise RuntimeError(f"❌ OCR 실패: {response.text}")
+
+        return response.json()

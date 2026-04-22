@@ -1,10 +1,12 @@
 import base64
+from typing import List
 
 import anthropic
 from anthropic.types import Base64ImageSourceParam, ImageBlockParam, MessageParam, TextBlockParam
 from ninja import File, Form, Router
 from ninja.files import UploadedFile
 
+from services.application.images.nomotron_processing import NemotronPreProcessing
 from services.application.images.pre_processing import ImagePreProcessing
 
 
@@ -12,17 +14,24 @@ router = Router(tags=["Agent"])
 
 
 @router.post("/image-to-text/vaiv")
-def image_to_text(request, image_file: File[UploadedFile], model: Form[str]):
+def image_to_text(request, image_file: List[UploadedFile], model: Form[str]):
     answer, b64 = ImagePreProcessing().extract_text(image_file, model)
 
     return {"detail": answer, "enhanced_image": b64}
 
 
-@router.post("/image-to-text/vaiv-vote")
-async def image_to_text_vote(request, image_file: File[UploadedFile], model: Form[str]):
-    answer, b64 = await ImagePreProcessing().extract_text_with_voting(image_file, model)
+# @router.post("/image-to-text/vaiv-vote")
+# async def image_to_text_vote(request, image_file: File[UploadedFile], model: Form[str]):
+#     answer, b64 = await ImagePreProcessing().extract_text_with_voting(image_file, model)
+#
+#     return {"detail": answer, "enhanced_image": b64}
 
-    return {"detail": answer, "enhanced_image": b64}
+
+@router.post("/image-to-text/nemotron-ocr-v2")
+def image_to_text_nemotron(request, image_file: File[UploadedFile]):
+    answer, b64s = NemotronPreProcessing().extract_text_with_ocr(image_file)
+
+    return {"detail": answer, "enhanced_images": b64s}
 
 
 @router.post("/image-to-text/anthropic")
