@@ -363,10 +363,9 @@
 <div class="right-panel">
     <h3>API 컨트롤러</h3>
     <select id="model-selector">
-        <option value="nemotron">nemotron-ocr-v2</option>
-        <option value="gemma4:31b">gemma4:31b</option>
         <option value="qwen3.6:35b-a3b">qwen3.6:35b-a3b</option>
         <option value="qwen3.5:35b">qwen3.5:35b</option>
+        <option value="anthropic">claude sonnet 4.6</option>
     </select>
     {#    <select id="type-selector">#}
     {#        <option value="">단일호출</option>#}
@@ -614,7 +613,7 @@
         apiBtn.disabled = true;
 
         let provider = '';
-        if (modelSelector.value === 'nemotron') provider = 'nemotron-ocr-v2';
+        if (modelSelector.value === 'anthropic') provider = 'anthropic';
         else provider = `vaiv`;
         {#else provider = `vaiv${typeSelector.value}`;#}
 

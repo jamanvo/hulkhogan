@@ -22,15 +22,16 @@ class NemotronPreProcessing(ImagePreProcessingBase):
         imgs = self._load_multi_images(uploaded_files)
 
         b64s = []
-        result_list = []
         constructed_text = ""
         for i, img in enumerate(imgs):
+            height, width, _ = img.shape
+
             image = (
                 ImageProcessor(img=img)
                 .to_grayscale_with_gamma(gamma=1.5)
                 .enhance_contrast(clip_limit=2.0)
                 .denoise()
-                # .sharpen(alpha=1.7)
+                .sharpen(alpha=1.7)
                 .adaptive_binarize(block_size=31)
                 .get_image()
             )
@@ -43,6 +44,7 @@ class NemotronPreProcessing(ImagePreProcessingBase):
 
             try:
                 ocr_result = self.vaiv_caller_nemotron.call_nemotron(img_path)
+                # constructed_text += self.parse_nemotron_output(ocr_result, height, width)
                 constructed_text += self.reconstruct_text(ocr_result)
 
             finally:
@@ -59,6 +61,58 @@ class NemotronPreProcessing(ImagePreProcessingBase):
                 f.write(chunk)
 
         return file_path
+
+    @staticmethod
+    def parse_nemotron_output(
+        result: dict, width: int, height: int, y_tolerance_ratio: float = 0.10
+    ):
+        items = result.get("raw", [])
+
+        structured_data = []
+        for item in items:
+            # 픽셀 좌표 변환
+            left = (item.get("left") / 1000) * width
+            top = (item.get("upper") / 1000) * height
+            right = (item.get("right") / 1000) * width
+            bottom = (item.get("lower") / 1000) * height
+
+            structured_data.append(
+                {
+                    "text": item["text"],
+                    "top": top,
+                    "bottom": bottom,
+                    "left": left,
+                    "center_y": (top + bottom) / 2,
+                    "height": bottom - top,
+                }
+            )
+
+        structured_data.sort(key=lambda x: x["top"])
+
+        lines = []
+        current_line = [structured_data[0]]
+        current_y_anchor = structured_data[0]["center_y"]
+        y_tolerance = height * y_tolerance_ratio
+
+        for item in structured_data[0:]:
+            gap_y = abs(current_y_anchor - item["bottom"]) * height
+            if gap_y <= y_tolerance:
+                current_line.append(item)
+            else:
+                lines.append(current_line)
+                current_line = [item]
+                current_y_anchor = item["center_y"]
+
+        if current_line:
+            lines.append(current_line)
+
+        result_text = []
+        for line in lines:
+            line.sort(key=lambda x: x["left"])
+            line_text = " ".join([item["text"] for item in line])
+            result_text.append(line_text)
+
+        return "\n".join(result_text)
 
     @staticmethod
     def reconstruct_text(result: dict, conf_threshold: float = 0.45) -> str:

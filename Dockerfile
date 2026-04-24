@@ -16,4 +16,4 @@ COPY . .
 
 EXPOSE 8010
 
-CMD ["uvicorn", "config.asgi:application", "--host",  "0.0.0.0", "--port", "8010"]
+CMD ["python", "manage.py", "runserver",  "0.0.0.0:8020"]
